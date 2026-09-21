@@ -1,7 +1,10 @@
 from pathlib import Path
 import re
 
-asm = Path(".pio/build/STC15F104W/src/main.asm").read_text(errors="replace")
+ROOT = Path(__file__).resolve().parent.parent
+BUILD = ROOT / ".pio/build/STC15F104W"
+
+asm = (BUILD / "src/main.asm").read_text(errors="replace")
 idx = asm.find("_main:")
 part = asm[idx:]
 m = re.search(r"if \(sbi\)", part)
@@ -61,7 +64,8 @@ for line in body_lines:
 print("SUM_ALL_LINES_ROUGH", total)
 print("(not path-split; see manual path analysis below)")
 
-# Path split by labels in listing
 text = "\n".join(body_lines)
-Path("_loop_dump.asm").write_text(text, encoding="utf-8")
-print("wrote _loop_dump.asm")
+out = BUILD / "_loop_dump.asm"
+BUILD.mkdir(parents=True, exist_ok=True)
+out.write_text(text, encoding="utf-8")
+print(f"wrote {out.relative_to(ROOT)}")
