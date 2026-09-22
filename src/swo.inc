@@ -2,66 +2,63 @@
 ;
 ; Регистры:
 ;   r7 = left  — сколько бит ещё слать в текущем байте (0 = нужен новый)
-;   r5 = lo    — текущий байт, уходит младшим битом вперёд
+;   r5 = byte  — текущий байт, уходит младшим битом вперёд
 ;   r6 = head  — индекс чтения в tq[]
 ;   r1 = tail  — индекс записи (из ring)
-;   C          — бит, который выведем на P35
-;   A          — временная переменная
+;   C          — бит, который выведем на P35 (PSW)
+;   A          — временная переменная для вычислений (ALU)
 ;
-;   if (left == 9) {
-;       /* → 20 (0) */  next = 0; left = 8; head = (head + 1) & 0x0F;
-;   } else if (left != 0) {
-;       /* → 20 (3) */  next = lo & 1; lo >>= 1; left--;
-;   } else if (head != tail) {
-;       /* → 20 (1) */  lo = tq[head]; left = 9; next = 1;  /* старт-бит */
-;   } else {
-;       /* → 20 (3) */  next = 1;  /* тишина / idle */
+;   if (left != 0) { /* swo_tick */
+;       left--;
+;       if (left != 8) { /* swo_data  */
+;           /* → 11 (1 nop) */  next = byte & 1; byte >>= 1;
+;       } else { /* swo_start */
+;           /* → 11 (0 nop) */  next = 0; head = (head + 1) & 15;
+;       }
+;   } else { /* swo_wait */
+;       if (head != tail) { /* swo_next */
+;           /* → 11 (0 nop) */  byte = tq[head]; left = 9; next = 1;
+;       } else { /* swo_idle */
+;			/* → 11 (3 nop) */ next = 1;
 ;   }
-;   P35 = next;
+;   P35 = next;  /* +2  → 13 ; вывести бит на пин */
 ;
-swo:
-	mov	a, r7					; +1  → 1  ; A = left
-	jz	need_byte				; +3  → 4  ; left==0 → брать новый байт
-	cjne	r7, #9, do_data		; +3  → 7  ; left!=9 → обычный бит данных
-	clr	c						; +1  → 8  ; next = 0
-	mov	r7, #8					; +1  → 9  ; left = 8
-	inc	r6						; +1  → 10 ; head++
-	mov	a, r6					; +1  → 11 ; A = head
-	anl	a, #0x0F				; +2  → 13 ; head &= 15
-	mov	r6, a					; +1  → 14 ; head = A
-	ljmp	emit				; +4  → 18 ; на вывод
 
-do_data:
-	mov	a, r5					; +1  → 8  ; A = lo
-	rrc	a						; +1  → 9  ; C = младший бит
-	mov	r5, a					; +1  → 10 ; сохранить lo
-	dec	r7						; +1  → 11 ; left--
-	nop							; +1  → 12 ;
-	nop							; +1  → 13 ;
-	nop							; +1  → 14 ;
-	ljmp	emit				; +4  → 18 ;
+swo: ; → 0 ; вход в обработчик SWO
+	cjne	r7, #0, swo_tick	; +2  → 2  ; if (left != 0) → swo_tick
+; swo_wait: ; → 2 ; ожидание нового байта
+	mov		a, r6				; +1  → 3  ; A = head
+	cjne	a, 0x01, swo_next	; +2  → 5  ; if (head != tail) → swo_next
+; swo_idle: ; → 5 ; пропуск бита данных
+	setb	c					; +1  → 6  ; next = 1
+	nop							; +1  → 7
+	nop							; +1  → 8
+	nop							; +1  → 9
+	sjmp	emit				; +2  → 11
 
-need_byte:
-	mov	a, r6					; +1  → 5  ; A = head
-	xrl	a, r1					; +1  → 6  ; A = head XOR tail
-	jnz	do_fetch				; +3  → 9  ; очередь не пуста → fetch
-	setb	c					; +1  → 10 ; next = 1
-	nop							; +1  → 11 ;
-	nop							; +1  → 12 ;
-	nop							; +1  → 13 ;
-	nop							; +1  → 14 ;
-	ljmp	emit				; +4  → 18 ;
+swo_tick: ; → 2 ; обработка бита данных
+	dec		r7					; +1  → 3  ; left--
+	cjne	r7, #8, swo_data	; +2  → 5  ; if (left != 8) → swo_data
+; swo_start: ; → 5 ; начало байта
+	clr		c					; +1  → 6  ; next = 0
+	inc		r6					; +1  → 7  ; head++
+	anl		0x06, #0x0F			; +2  → 9  ; r6 &= 15
+	sjmp	emit				; +2  → 11
 
-do_fetch:
-	mov	a, r6					; +1  → 10 ; A = head
-	add	a, #_tq					; +2  → 12 ; A = &tq[head]
-	mov	r0, a					; +1  → 13 ; R0 → ячейка в IRAM
-	mov	a, @r0					; +1  → 14 ; A = tq[head]
-	mov	r5, a					; +1  → 15 ; lo = байт
-	mov	r7, #9					; +1  → 16 ; left = 9
-	setb	c					; +1  → 17 ; next = 1
-	nop							; +1  → 18 ;
+swo_data: ; → 5
+	mov		a, r5				; +1  → 6  ; A = byte
+	rrc		a					; +1  → 7  ; C = младший бит A
+	mov		r5, a				; +1  → 8  ; byte = A
+	nop							; +1  → 9
+	sjmp	emit				; +2  → 11
 
-emit:
-	mov	P35, c					; +2  → 20 ; вывести бит на пин
-	
+swo_next: ; → 5
+	add		a, #_tq				; +1  → 6  ; A = tq + head (A уже = head)
+	mov		r0, a				; +1  → 7  ; R0 = адрес ячейки
+	mov		a, @r0				; +1  → 8  ; A = tq[head]
+	mov		r5, a				; +1  → 9  ; byte = tq[head]
+	mov		r7, #9				; +1  → 10 ; left = 9
+	setb	c					; +1  → 11 ; next = 1
+
+emit: ; → 11
+	mov	P35, c					; +2  → 13 ; вывести бит на пин
