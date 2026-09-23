@@ -1,14 +1,7 @@
-; loop.asm — каждый оборот: swo → (uart | ring) → top.
-; Цель: swo → 20, uart|ring → 28, сумма 48 (пока НЕ выровнено).
+; loop.asm — главный цикл программы.
+; Цель: swo → 13, uart + ring → 32, переход к началу цикла → 3, сумма 48.
 ;
-; === Как на C ===
-;
-;   for (;;) {
-;       swo();                 /* 20 */
-;       if (k++ & 1) uart();
-;       else         ring();   /* → 28 */
-;   }
-;
+
 	.module loop
 	.optsdcc -mmcs51 --model-small
 
@@ -33,18 +26,14 @@ P35 = 0xB5
 
 _loop::
 	mov	r7, #0 		; left = 0
-	mov	r5, #0 		; lo = 0
+	mov	r5, #0 		; byte = 0
 	mov	r6, #0 		; head = 0
 	mov	r1, _tail 	; tail = _tail
 	clr	F0 			; флаг для выбора обработчика = 0
 	clr	_rx_pend 	; флаг для обработки кольцевого буфера = 0
 
-top:
-	.include "swo.inc" 	; 20  → 20 ; обработка SWO
-	cpl	F0 				;  1  → 21 ; флаг для выбора обработчика
-	jnb	F0, do_ring 	;  3  → 24 ; если флаг установлен, то обработка UART
-	.include "uart.inc" ; 21  → 21 ; обработка UART
-	ljmp	top 		;  3  → 27 ; переход к началу цикла
-do_ring:
-	.include "ring.inc" ; 21  → 21 ; обработка кольцевого буфера
-	ljmp	top 		;  3  → 27 ; переход к началу цикла
+top: ; → 0 ; начало цикла
+	.include "swo.inc" 	; +13 → 13 ; обработка SWO
+; 	.include "uart.inc" ; ??  → ?? ; обработка UART
+; 	.include "ring.inc" ; ??  → ?? ; обработка кольцевого буфера
+	ljmp	top 		; +3  → 48 ; переход к началу цикла
