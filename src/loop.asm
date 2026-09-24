@@ -8,11 +8,12 @@
 	.globl _loop
 	.globl _tq
 	.globl _tail
-	.globl _rx_acc
+	; .globl _rx_acc
 	.globl _rx_ph
-	.globl _rx_bc
+	; .globl _rx_bc
+	.globl _rx_due
 	.globl _rx_rr
-	.globl _rx_res
+	; .globl _rx_res
 	.globl _rx_pend
 
 	.area CSEG (CODE)
@@ -34,6 +35,6 @@ _loop::
 
 top: ; → 0 ; начало цикла
 	.include "swo.inc" 	; +13 → 13 ; обработка SWO
-; 	.include "uart.inc" ; ??  → ?? ; обработка UART
-; 	.include "ring.inc" ; ??  → ?? ; обработка кольцевого буфера
+	.include "uart.inc" ; ??  → ?? ; обработка UART
+	.include "ring.inc" ; ??  → ?? ; обработка кольцевого буфера
 	ljmp	top 		; +3  → 48 ; переход к началу цикла

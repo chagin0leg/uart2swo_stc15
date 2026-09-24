@@ -17,6 +17,7 @@ __data uint8_t tail;
 __data uint8_t rx_acc[5];
 __data uint8_t rx_ph[5];   /* n */
 __data uint8_t rx_bc[5];
+__data uint8_t rx_due;
 __data uint8_t rx_rr;
 __data uint8_t rx_res[2];  /* [0]=канал, [1]=байт; pend=пара готова */
 __bit rx_pend;
@@ -39,6 +40,7 @@ void main(void)
         rx_acc[i] = 0;
     }
     rx_rr = 0;
+    rx_due = 0xFF;
     rx_res[0] = 0;
     rx_res[1] = 0;
     rx_pend = 0;
